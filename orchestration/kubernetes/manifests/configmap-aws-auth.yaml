@@ -1,0 +1,24 @@
+# maps IAM role to Kubernetes user/group
+# maps IAM user to Kubernetes user/group
+# CANNOT map IAM group to Kubernetes user/group
+
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: aws-auth
+  namespace: kube-system
+data:
+  mapRoles: |
+    - rolearn: arn:aws:iam::848808798256:role/clusterAdminRole
+      username: cluster-admin
+      groups:
+        - system:masters
+    - rolearn: arn:aws:iam::848808798256:role/clusterUserRole
+      username: cluster-user
+    - rolearn: arn:aws:iam::848808798256:role/clusterViewerRole
+      username: cluster-viewer
+    - rolearn: arn:aws:iam::848808798256:role/myEksNodeServiceRole
+      username: system:node:{{EC2PrivateDNSName}}
+      groups:
+        - system:bootstrappers
+        - system:nodes

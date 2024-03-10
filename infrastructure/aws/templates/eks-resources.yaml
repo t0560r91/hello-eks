@@ -1,0 +1,170 @@
+Description: Creates AWS resources required to manage EKS clusters.
+Resources:
+###############################################################################
+# IAM                                                                         #
+###############################################################################
+
+# ClusterRole - associate with a cluster
+  myEksClusterServiceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: myEksClusterServiceRole
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+            Effect: Allow
+            Action: sts:AssumeRole
+            Principal: 
+              # TODO: Does this grant permission for the eks service to configure the role for the clusters?
+              Service: eks.amazonaws.com
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AmazonEKSClusterPolicy
+
+# NodeRole - associate with a nodegroup and therefore all managed node in that nodegroup
+  myEksNodeServiceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: myEksNodeServiceRole
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+            Effect: Allow
+            Action: sts:AssumeRole
+            Principal: 
+              # TODO: Does this grant permission for the ec2 service to configure the role for the nodes?
+              Service: ec2.amazonaws.com  
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AmazonEKSWorkerNodePolicy
+        - arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly
+        # TODO: Need to figure out CNI.
+        - arn:aws:iam::aws:policy/AmazonEKS_CNI_Policy
+
+        
+###############################################################################
+# VPC                                                                         #
+###############################################################################
+  myEksVpc:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 10.0.0.0/24
+      EnableDnsHostnames: true
+      EnableDnsSupport: true
+      Tags: 
+        - Key: project_name
+          Value: hello_eks
+
+  myEksIgw:
+    Type: AWS::EC2::InternetGateway
+    Properties:
+      Tags: 
+        - Key: project_name
+          Value: hello_eks
+
+  myEksIgwAttachment:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      VpcId: !Ref myEksVpc
+      InternetGatewayId: !Ref myEksIgw
+  
+  myEksPublicSubnetA:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref myEksVpc
+      AvailabilityZone: us-west-2a
+      CidrBlock: 10.0.0.0/25
+      MapPublicIpOnLaunch: true
+      Tags: 
+        - Key: project_name
+          Value: hello_eks
+
+  myEksPublicSubnetB:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref myEksVpc
+      AvailabilityZone: us-west-2b
+      CidrBlock: 10.0.0.128/25
+      MapPublicIpOnLaunch: true
+      Tags: 
+        - Key: project_name
+          Value: hello_eks
+
+  myEksPublicRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref myEksVpc
+      Tags: 
+        - Key: project_name
+          Value: hello_eks
+
+  myEksIgwRoutes:
+    Type: AWS::EC2::Route
+    Properties:
+      RouteTableId: !Ref myEksPublicRouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref myEksIgw
+
+  myEksPublicSubnetRouteTableAssociationA:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref myEksPublicSubnetA
+      RouteTableId: !Ref myEksPublicRouteTable
+
+  myEksPublicSubnetRouteTableAssociationB:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref myEksPublicSubnetB
+      RouteTableId: !Ref myEksPublicRouteTable
+
+
+###############################################################################
+# Security Group                                                              #
+###############################################################################
+
+# TODO
+
+
+###############################################################################
+# EKS Cluster                                                                 #
+###############################################################################
+  EKSCluster:
+    Type: AWS::EKS::Cluster
+    Properties:
+      Version: '1.23'
+      Name: hello-eks-cluster
+      RoleArn: !GetAtt myEksClusterServiceRole.Arn
+      ResourcesVpcConfig:
+        # TODO
+        # SecurityGroupIds:
+        #   - sg-6979fe18
+        SubnetIds:
+          - !Ref myEksPublicSubnetA
+          - !Ref myEksPublicSubnetB
+        EndpointPublicAccess: true
+        EndpointPrivateAccess: true
+        PublicAccessCidrs: [ "0.0.0.0/0" ]
+      # Logging:
+      #   ClusterLogging:
+      #     EnabledTypes:
+      #       - Type: api
+      #       - Type: audit
+      Tags: 
+        - Key: project_name
+          Value: hello_eks
+
+      # TODO: Do we need VPC Endpoint?
+
+
+###############################################################################
+# EKS Nodes                                                                   #
+###############################################################################
+# TODO
+
+
+# Outputs:
+#   tags:
+#     Value: !Join
+#       - ''
+#       - - 'Tag Key: '
+#         - !GetAtt myEksVpc.Tags.Key 
+#         - ', Value: '
+#         - !GetAtt myEksVpc.Tags.Value
