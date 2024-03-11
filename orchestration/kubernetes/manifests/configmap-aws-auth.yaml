@@ -10,13 +10,27 @@ metadata:
 data:
   mapRoles: |
     - rolearn: arn:aws:iam::848808798256:role/clusterAdminRole
-      username: cluster-admin
+      username: cluster-admin:{{SessionName}}
       groups:
         - system:masters
     - rolearn: arn:aws:iam::848808798256:role/clusterUserRole
-      username: cluster-user
+      username: cluster-user:{{SessionName}}
+      groups:
+        - cluster-user-group
     - rolearn: arn:aws:iam::848808798256:role/clusterViewerRole
-      username: cluster-viewer
+      username: cluster-viewer:{{SessionName}}
+      groups:
+        - cluster-viewer-group
+    - rolearn: arn:aws:iam::848808798256:role/ns0AdminRole
+      username: ns0-admin:{{SessionName}}
+      groups:
+        - cluster-viewer-group
+        - ns0-admin-group
+    - rolearn: arn:aws:iam::848808798256:role/ns0UserRole
+      username: ns0-user:{{SessionName}}
+      groups:
+        - cluster-viewer-group
+        - ns0-user-group
     - rolearn: arn:aws:iam::848808798256:role/myEksNodeServiceRole
       username: system:node:{{EC2PrivateDNSName}}
       groups:

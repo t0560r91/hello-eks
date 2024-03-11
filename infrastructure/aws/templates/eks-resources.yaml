@@ -126,7 +126,7 @@ Resources:
 ###############################################################################
 # EKS Cluster                                                                 #
 ###############################################################################
-  EKSCluster:
+  eksCluster:
     Type: AWS::EKS::Cluster
     Properties:
       Version: '1.23'
@@ -155,11 +155,33 @@ Resources:
 
 
 ###############################################################################
-# EKS Nodes                                                                   #
+# EKS Node Group                                                              #
 ###############################################################################
-# TODO
+  eksNodegroup:
+    Type: AWS::EKS::Nodegroup
+    DependsOn:
+      - eksCluster
+      - myEksNodeServiceRole
+    Properties:
+      ClusterName: !Ref eksCluster
+      NodeRole: !GetAtt myEksNodeServiceRole.Arn
+      Subnets:
+        # TODO: Re-configure subnets to be private?
+        - !Ref myEksPublicSubnetA
+        - !Ref myEksPublicSubnetB
+      NodegroupName: ng1
+      AmiType: AL2023_x86_64_STANDARD
+      CapacityType: ON_DEMAND
+      InstanceTypes: [t2.micro]
+      ScalingConfig:
+        DesiredSize: 1
+        MinSize: 0
+        MaxSize: 5
+      RemoteAccess:
+        Ec2SshKey: skim-to-ec2
 
 
+# TODO:
 # Outputs:
 #   tags:
 #     Value: !Join

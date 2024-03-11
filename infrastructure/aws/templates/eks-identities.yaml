@@ -142,6 +142,81 @@ Resources:
                   - eks:AccessKubernetesApi  # Needed for eks get-token?
                 Resource: '*'
 
+  ns0AdminRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: ns0AdminRole
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Action: sts:AssumeRole
+            Principal: 
+              AWS: arn:aws:iam::848808798256:root
+      Policies:
+        - PolicyName: eksViewerPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: 
+                  - eks:ListClusters
+                  - eks:DescribeCluster  # Needed for eks update-kubeconfig
+                  - eks:ListNodegroups
+                  - eks:DescribeNodegroup
+                  - eks:ListAddons
+                  - eks:DescribeAddonVersions
+                  - eks:ListUpdates
+                  - eks:ListFargateProfiles
+                  - eks:ListIdentityProviderConfigs
+                  - iam:ListRoles
+                Resource: '*'
+        - PolicyName: KubernetesAccessPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - eks:AccessKubernetesApi  # Needed for eks get-token?
+                Resource: '*'
+
+  ns0UserRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: ns0UserRole
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Action: sts:AssumeRole
+            Principal: 
+              AWS: arn:aws:iam::848808798256:root
+      Policies:
+        - PolicyName: eksViewerPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: 
+                  - eks:ListClusters
+                  - eks:DescribeCluster  # Needed for eks update-kubeconfig
+                  - eks:ListNodegroups
+                  - eks:DescribeNodegroup
+                  - eks:ListAddons
+                  - eks:DescribeAddonVersions
+                  - eks:ListUpdates
+                  - eks:ListFargateProfiles
+                  - eks:ListIdentityProviderConfigs
+                  - iam:ListRoles
+                Resource: '*'
+        - PolicyName: KubernetesAccessPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - eks:AccessKubernetesApi  # Needed for eks get-token?
+                Resource: '*'
   ### Groups ###
 
   ### EKS Admin Group needs permissions to:
@@ -210,10 +285,41 @@ Resources:
                 Action: sts:AssumeRole
                 Resource: !GetAtt clusterUserRole.Arn
 
+  ns0AdminGroup:
+    DependsOn: 
+      - ns0AdminRole
+    Type: AWS::IAM::Group
+    Properties:
+      GroupName: ns0AdminGroup
+      Policies:
+        - PolicyName: assumeRolePolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: sts:AssumeRole
+                Resource: !GetAtt ns0AdminRole.Arn
+
+  ns0UserGroup:
+    DependsOn: 
+      - ns0UserRole
+    Type: AWS::IAM::Group
+    Properties:
+      GroupName: ns0UserGroup
+      Policies:
+        - PolicyName: assumeRolePolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: sts:AssumeRole
+                Resource: !GetAtt ns0UserRole.Arn
   ### Users ###
   dev1:
     DependsOn: 
       - eksAdminGroup
+      - clusterAdminGroup
+      - ns0AdminGroup
     Type: AWS::IAM::User
     Properties:
       Tags:
@@ -223,10 +329,13 @@ Resources:
       Groups:
         - !Ref eksAdminGroup
         - !Ref clusterAdminGroup
+        - !Ref ns0AdminGroup
 
   dev2:
     DependsOn: 
       - eksUserGroup
+      - clusterUserGroup
+      - ns0UserGroup
     Type: AWS::IAM::User
     Properties:
       Tags:
@@ -236,3 +345,4 @@ Resources:
       Groups:
         - !Ref eksUserGroup
         - !Ref clusterUserGroup
+        - !Ref ns0UserGroup

@@ -1,0 +1,33 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: ns1-user-role
+  namespace: ns1
+rules:
+- apiGroups: ["*"]
+  resources: ["*"]
+  verbs: 
+    - get
+    - list
+- apiGroups: ["*"]
+  resources: 
+    - pod
+    - service
+    - replicaset
+    - deployment
+    - configmap
+    - secret
+  verbs: ["*"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: ns1-user-rolebinding
+roleRef:
+  kind: Role
+  name: ns1-user-role
+  apiGroup: rbac.authorization.k8s.io
+subjects:
+- kind: Group
+  name: ns1-user-group
+  apiGroup: rbac.authorization.k8s.io
