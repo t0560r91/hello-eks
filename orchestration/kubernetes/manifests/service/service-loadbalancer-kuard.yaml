@@ -1,0 +1,40 @@
+# Creates AWS Network Load Balancer (NLB) via AWS Load Balancer Controller (LBC).
+# NLB is L4.
+# NLB routes traffic to NLB TargetGroup of Nodes which is bound to Service via TargetGroupsBinding.
+apiVersion: v1
+metadata:
+  namespace: ns1
+  name: kuard-loadbalancer
+  labels:
+    app-name: kuard
+  annotations: 
+    service.beta.kubernetes.io/aws-load-balancer-type: external
+    service.beta.kubernetes.io/aws-load-balancer-nlb-target-type: instance  # options: instance (default), ip
+      # instance: LB -> NodePorts -> kube-proxy -> Pods
+      # ip: LB -> Pods
+    service.beta.kubernetes.io/aws-load-balancer-scheme: internet-facing  # options: internal (default), internet-facing
+    service.beta.kubernetes.io/aws-load-balancer-additional-resource-tags: project_name=hello_eks,created_by=aws_lbc
+    service.beta.kubernetes.io/aws-load-balancer-subnets: kuardPublicSubnet  # Name tag
+    service.beta.kubernetes.io/aws-load-balancer-security-groups: kuardFrontendSecurityGroup  # Name tag
+    service.beta.kubernetes.io/aws-load-balancer-manage-backend-security-group-rules: true
+    # service.beta.kubernetes.io/aws-load-balancer-eip-allocations: eip-alloc-id-1,eip-alloc-id-2
+
+
+
+spec:
+  type: LoadBalancer  # modifying this will cleanup the NLB.
+  # replace the in-tree controller with cloud provider's controller (AWS LBC) to reconcile the Service resource
+  # reconciliation of Service resource of type LoadBalancer????
+    # watch for Pod changes and upate load balancer config accordingly (Pods Endpoints?)
+  loadBalancerClass: service.k8s.aws/nlb  # if no matching class then this Service resource will be ignored
+  ports:
+  - port: 30000 # port == cluster-ip port == node port
+    targetPort: 8080
+  selector:
+    app-name: kuard
+
+# controller manager: kube-controller-manager or cloud-controller-manager
+#   component: CloudProvider
+#     controller: controller reconciles Service (of type LoadBalancer)
+#       by default Kubernetes in-tree controller reconciles the Service resources
+#       however, we need to manually offload the default controller and use external controller provided by the cloud provider

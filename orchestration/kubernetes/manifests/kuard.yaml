@@ -1,0 +1,52 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: ns1
+  labels:
+    name: kuard
+
+---
+
+apiVersion: v1
+kind: Pod
+metadata:
+  name: kuard
+  namespace: ns1
+  labels: 
+    app-name: kuard
+spec:
+  # nodeSelector:
+  #   nodeSubnetType: public # pod does not need to be in public, service do
+  containers:
+  - name: kuard-app
+    image: gcr.io/kuar-demo/kuard-amd64:blue  # apps runs on port 8080
+    ports: 
+    - containerPort: 8080  # port which the container exposes (both in container and pod)
+      # hostPort: 5000 # host's (node) external-ip port where the container is mapped to; use this to expose the pod on the hosting node itself without going through Service.
+  # restartPolicy:
+
+---
+
+apiVersion: v1
+metadata:
+  namespace: ns1
+  name: kuard-loadbalancer
+  labels:
+    app-name: kuard
+  annotations: 
+    service.beta.kubernetes.io/aws-load-balancer-type: external
+    service.beta.kubernetes.io/aws-load-balancer-nlb-target-type: instance  # options: instance (default), ip
+    service.beta.kubernetes.io/aws-load-balancer-scheme: internet-facing  # options: internal (default), internet-facing
+    service.beta.kubernetes.io/aws-load-balancer-additional-resource-tags: project_name=hello_eks,created_by=aws_lbc
+    service.beta.kubernetes.io/aws-load-balancer-subnets: kuardPublicSubnet  # Name tag
+    service.beta.kubernetes.io/aws-load-balancer-security-groups: kuardFrontendSecurityGroup  # Name tag
+    service.beta.kubernetes.io/aws-load-balancer-manage-backend-security-group-rules: true
+    # service.beta.kubernetes.io/aws-load-balancer-eip-allocations: eip-alloc-id-1,eip-alloc-id-2
+spec:
+  type: LoadBalancer  # modifying this will cleanup the NLB.
+  loadBalancerClass: service.k8s.aws/nlb  # if no matching class then this Service resource will be ignored
+  ports:
+  - port: 30000 # port == cluster-ip port == node port
+    targetPort: 8080
+  selector:
+    app-name: kuard

@@ -83,6 +83,13 @@ Resources:
       Tags: 
         - Key: project_name
           Value: hello_eks
+          # Used for AWS LoadBalancer
+        - Key: Name
+          Value: kuardPublicSubnet
+        # - Key: kubernetes.io/cluster/hello-eks-cluster  # TODO: parameterize the cluster-name.
+        #   Value: owned  # or shared  
+        # - Key: kubernetes.io/role/elb
+        #   Value: 1
   kuardPublicRouteTable:
     Type: AWS::EC2::RouteTable
     Properties:
@@ -122,6 +129,13 @@ Resources:
       Tags: 
         - Key: project_name
           Value: hello_eks
+          # Used for AWS LoadBalancerController
+        # - Key: kubernetes.io/cluster/hello-eks-cluster  # TODO: parameterize the cluster-name
+        #   Value: owned  # or shared
+        # - Key: kubernetes.io/role/internal-elb
+        #   Value: 1
+        - Key: Name
+          Value: kuardPrivateSubnet
   kuardPrivateRouteTable:
     Type: AWS::EC2::RouteTable
     Properties:
@@ -145,8 +159,21 @@ Resources:
 ###############################################################################
 # Security Group                                                              #
 ###############################################################################
-
-# TODO
+  kuardSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Allow all TPC inbound traffic
+      SecurityGroupIngress: 
+        - IpProtocol: tcp
+          CidrIp: 0.0.0.0/0
+          FromPort: 1
+          ToPort: 65535
+      Tags: 
+        - Key: project_name
+          Value: hello_eks
+        - Key: Name
+          Value: kuardFrontendSecurityGroup
+      VpcId: !Ref kuardVpc
 
 
 ###############################################################################
@@ -165,9 +192,8 @@ Resources:
         SubnetIds:
           - !Ref kuardPublicSubnet
           - !Ref kuardPrivateSubnet
-        # TODO
-        # SecurityGroupIds:
-        #   - sg-6979fe18
+        SecurityGroupIds:
+          - !GetAtt kuardSecurityGroup.GroupId
       KubernetesNetworkConfig:
         IpFamily: ipv4  # default
         ServiceIpv4Cidr: 192.168.0.0/16  # this shouldn't overlap with other CIDR block in the VPC.
@@ -193,7 +219,6 @@ Resources:
       ClusterName: !Ref kuardCluster
       NodeRole: !GetAtt kuardNodeServiceRole.Arn
       Subnets:
-        # TODO: Re-configure subnets to be private?
         - !Ref kuardPrivateSubnet
       AmiType: AL2023_x86_64_STANDARD
       CapacityType: ON_DEMAND
@@ -204,6 +229,8 @@ Resources:
         MaxSize: 5
       RemoteAccess:
         Ec2SshKey: skim-to-ec2
+      Labels:
+        nodeSubnetType: private
 
   kuardPublicNodegroup:
     Type: AWS::EKS::Nodegroup
@@ -216,7 +243,6 @@ Resources:
       ClusterName: !Ref kuardCluster
       NodeRole: !GetAtt kuardNodeServiceRole.Arn
       Subnets:
-        # TODO: Re-configure subnets to be private?
         - !Ref kuardPublicSubnet
       AmiType: AL2023_x86_64_STANDARD
       CapacityType: ON_DEMAND
@@ -227,6 +253,8 @@ Resources:
         MaxSize: 5
       RemoteAccess:
         Ec2SshKey: skim-to-ec2
+      Labels:
+        nodeSubnetType: public
 
 
 # TODO:
