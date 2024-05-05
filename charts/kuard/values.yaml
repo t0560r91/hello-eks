@@ -1,0 +1,10 @@
+# aws-load-balancer-controller:
+#   clusterName: hello-eks-cluster
+#   serviceAccount:
+#     create: false
+#     # name: aws-load-balancer-controller
+#     # annotations: 
+#     #   eks.amazonaws.com/role-arn: arn:aws:iam::848808798256:role/kuardLbcServiceRole # TODO: Note this fix
+#   region: us-west-2 # Does it need to be manual?
+#   # vpcId: vpc-09e1d683b83386fcb # TODO: Note this fix
+#   vpcId: vpc-046ffa758749fe8fa

@@ -1,0 +1,527 @@
+Description: Creates AWS resources required to manage EKS clusters.
+  
+Resources:
+###############################################################################
+# IAM                                                                         #
+###############################################################################
+
+# ClusterRole - associate with a cluster
+  kuardClusterServiceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: kuardClusterServiceRole
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+            Effect: Allow
+            Action: sts:AssumeRole
+            Principal: 
+              # TODO: Does this grant permission for the eks service to configure the role for the clusters?
+              Service: eks.amazonaws.com
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AmazonEKSClusterPolicy
+
+# NodeRole - associate with a nodegroup and therefore all managed node in that nodegroup
+  kuardNodeServiceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: kuardNodeServiceRole
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+            Effect: Allow
+            Action: sts:AssumeRole
+            Principal: 
+              # TODO: Does this grant permission for the ec2 service to configure the role for the nodes?
+              Service: ec2.amazonaws.com  
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AmazonEKSWorkerNodePolicy
+        - arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly
+        # TODO: Need to figure out CNI.
+        - arn:aws:iam::aws:policy/AmazonEKS_CNI_Policy
+
+          # Version: '2012-10-17'
+          # Statement:
+          #   Effect: Allow
+          #   Action: sts:AssumeRoleWithWebIdentity
+          #   Principal: 
+          #     Federated: arn:aws:iam::${AWS::AccountId}:oidc-provider/id/${oicd_path}
+          #   Condition:
+          #     StringEquals:
+          #       ${oicd_path}:aud: sts.amazonaws.com
+          #       ${oicd_path}:sub: system:serviceaccount:kube-system:aws-load-balancer-controller
+
+  kuardLbcServiceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: kuardLbcServiceRole
+      # TODO: Do we need the AWS LBC SA to be in kube-system NS? 
+      AssumeRolePolicyDocument: !Sub
+        - |
+          {
+              "Version": "2012-10-17",
+              "Statement": [
+                  {
+                      "Effect": "Allow",
+                      "Principal": {
+                          "Federated": "arn:aws:iam::${AWS::AccountId}:oidc-provider/${OIDCPath}"
+                      },
+                      "Action": "sts:AssumeRoleWithWebIdentity",
+                      "Condition": {
+                          "StringEquals": {
+                              "${OIDCPath}:aud": "sts.amazonaws.com",
+                              "${OIDCPath}:sub": "system:serviceaccount:kube-system:aws-load-balancer-controller"
+                          }
+                      }
+                  }
+              ]
+          }
+        - OIDCPath: !Select [1, !Split ["//", !GetAtt kuardCluster.OpenIdConnectIssuerUrl]]
+      # AssumeRolePolicyDocument: 
+      #   {
+      #     "Version": "2012-10-17",
+      #     "Statement": [
+      #       {
+      #         "Effect": "Allow",
+      #         "Principal": {
+      #           "Federated": "arn:aws:iam::848808798256:oidc-provider/oidc.eks.us-west-2.amazonaws.com/id/3D2CC42DC1D582A003C8AA05C8E6BB4F"
+      #         },
+      #         "Action": "sts:AssumeRoleWithWebIdentity",
+      #         "Condition": {
+      #           "StringEquals": {
+      #             "oidc.eks.us-west-2.amazonaws.com/id/3D2CC42DC1D582A003C8AA05C8E6BB4F:aud": "sts.amazonaws.com",
+      #             "oidc.eks.us-west-2.amazonaws.com/id/3D2CC42DC1D582A003C8AA05C8E6BB4F:sub": "system:serviceaccount:kube-system:aws-load-balancer-controller"
+      #           }
+      #         }
+      #       }
+      #     ]
+      #   }
+      Policies:
+        - PolicyName: kuardLbcServiceRolePolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+            - Effect: Allow
+              Action:
+              - iam:CreateServiceLinkedRole
+              Resource: "*"
+              Condition:
+                StringEquals:
+                  iam:AWSServiceName: elasticloadbalancing.amazonaws.com
+            - Effect: Allow
+              Action:
+              - ec2:DescribeAccountAttributes
+              - ec2:DescribeAddresses
+              - ec2:DescribeAvailabilityZones
+              - ec2:DescribeInternetGateways
+              - ec2:DescribeVpcs
+              - ec2:DescribeVpcPeeringConnections
+              - ec2:DescribeSubnets
+              - ec2:DescribeSecurityGroups
+              - ec2:DescribeInstances
+              - ec2:DescribeNetworkInterfaces
+              - ec2:DescribeTags
+              - ec2:GetCoipPoolUsage
+              - ec2:DescribeCoipPools
+              - elasticloadbalancing:DescribeLoadBalancers
+              - elasticloadbalancing:DescribeLoadBalancerAttributes
+              - elasticloadbalancing:DescribeListeners
+              - elasticloadbalancing:DescribeListenerCertificates
+              - elasticloadbalancing:DescribeSSLPolicies
+              - elasticloadbalancing:DescribeRules
+              - elasticloadbalancing:DescribeTargetGroups
+              - elasticloadbalancing:DescribeTargetGroupAttributes
+              - elasticloadbalancing:DescribeTargetHealth
+              - elasticloadbalancing:DescribeTags
+              - elasticloadbalancing:DescribeTrustStores
+              Resource: "*"
+            - Effect: Allow
+              Action:
+              - cognito-idp:DescribeUserPoolClient
+              - acm:ListCertificates
+              - acm:DescribeCertificate
+              - iam:ListServerCertificates
+              - iam:GetServerCertificate
+              - waf-regional:GetWebACL
+              - waf-regional:GetWebACLForResource
+              - waf-regional:AssociateWebACL
+              - waf-regional:DisassociateWebACL
+              - wafv2:GetWebACL
+              - wafv2:GetWebACLForResource
+              - wafv2:AssociateWebACL
+              - wafv2:DisassociateWebACL
+              - shield:GetSubscriptionState
+              - shield:DescribeProtection
+              - shield:CreateProtection
+              - shield:DeleteProtection
+              Resource: "*"
+            - Effect: Allow
+              Action:
+              - ec2:AuthorizeSecurityGroupIngress
+              - ec2:RevokeSecurityGroupIngress
+              Resource: "*"
+            - Effect: Allow
+              Action:
+              - ec2:CreateSecurityGroup
+              Resource: "*"
+            - Effect: Allow
+              Action:
+              - ec2:CreateTags
+              Resource: arn:aws:ec2:*:*:security-group/*
+              Condition:
+                StringEquals:
+                  ec2:CreateAction: CreateSecurityGroup
+                'Null':
+                  aws:RequestTag/elbv2.k8s.aws/cluster: 'false'
+            - Effect: Allow
+              Action:
+              - ec2:CreateTags
+              - ec2:DeleteTags
+              Resource: arn:aws:ec2:*:*:security-group/*
+              Condition:
+                'Null':
+                  aws:RequestTag/elbv2.k8s.aws/cluster: 'true'
+                  aws:ResourceTag/elbv2.k8s.aws/cluster: 'false'
+            - Effect: Allow
+              Action:
+              - ec2:AuthorizeSecurityGroupIngress
+              - ec2:RevokeSecurityGroupIngress
+              - ec2:DeleteSecurityGroup
+              Resource: "*"
+              Condition:
+                'Null':
+                  aws:ResourceTag/elbv2.k8s.aws/cluster: 'false'
+            - Effect: Allow
+              Action:
+              - elasticloadbalancing:CreateLoadBalancer
+              - elasticloadbalancing:CreateTargetGroup
+              Resource: "*"
+              Condition:
+                'Null':
+                  aws:RequestTag/elbv2.k8s.aws/cluster: 'false'
+            - Effect: Allow
+              Action:
+              - elasticloadbalancing:CreateListener
+              - elasticloadbalancing:DeleteListener
+              - elasticloadbalancing:CreateRule
+              - elasticloadbalancing:DeleteRule
+              Resource: "*"
+            - Effect: Allow
+              Action:
+              - elasticloadbalancing:AddTags
+              - elasticloadbalancing:RemoveTags
+              Resource:
+              - arn:aws:elasticloadbalancing:*:*:targetgroup/*/*
+              - arn:aws:elasticloadbalancing:*:*:loadbalancer/net/*/*
+              - arn:aws:elasticloadbalancing:*:*:loadbalancer/app/*/*
+              Condition:
+                'Null':
+                  aws:RequestTag/elbv2.k8s.aws/cluster: 'true'
+                  aws:ResourceTag/elbv2.k8s.aws/cluster: 'false'
+            - Effect: Allow
+              Action:
+              - elasticloadbalancing:AddTags
+              - elasticloadbalancing:RemoveTags
+              Resource:
+              - arn:aws:elasticloadbalancing:*:*:listener/net/*/*/*
+              - arn:aws:elasticloadbalancing:*:*:listener/app/*/*/*
+              - arn:aws:elasticloadbalancing:*:*:listener-rule/net/*/*/*
+              - arn:aws:elasticloadbalancing:*:*:listener-rule/app/*/*/*
+            - Effect: Allow
+              Action:
+              - elasticloadbalancing:ModifyLoadBalancerAttributes
+              - elasticloadbalancing:SetIpAddressType
+              - elasticloadbalancing:SetSecurityGroups
+              - elasticloadbalancing:SetSubnets
+              - elasticloadbalancing:DeleteLoadBalancer
+              - elasticloadbalancing:ModifyTargetGroup
+              - elasticloadbalancing:ModifyTargetGroupAttributes
+              - elasticloadbalancing:DeleteTargetGroup
+              Resource: "*"
+              Condition:
+                'Null':
+                  aws:ResourceTag/elbv2.k8s.aws/cluster: 'false'
+            - Effect: Allow
+              Action:
+              - elasticloadbalancing:AddTags
+              Resource:
+              - arn:aws:elasticloadbalancing:*:*:targetgroup/*/*
+              - arn:aws:elasticloadbalancing:*:*:loadbalancer/net/*/*
+              - arn:aws:elasticloadbalancing:*:*:loadbalancer/app/*/*
+              Condition:
+                StringEquals:
+                  elasticloadbalancing:CreateAction:
+                  - CreateTargetGroup
+                  - CreateLoadBalancer
+                'Null':
+                  aws:RequestTag/elbv2.k8s.aws/cluster: 'false'
+            - Effect: Allow
+              Action:
+              - elasticloadbalancing:RegisterTargets
+              - elasticloadbalancing:DeregisterTargets
+              Resource: arn:aws:elasticloadbalancing:*:*:targetgroup/*/*
+            - Effect: Allow
+              Action:
+              - elasticloadbalancing:SetWebAcl
+              - elasticloadbalancing:ModifyListener
+              - elasticloadbalancing:AddListenerCertificates
+              - elasticloadbalancing:RemoveListenerCertificates
+              - elasticloadbalancing:ModifyRule
+              Resource: "*"
+
+
+        
+###############################################################################
+# VPC                                                                         #
+###############################################################################
+
+  # VPC
+  kuardVpc:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 10.0.0.0/24
+      EnableDnsHostnames: true
+      EnableDnsSupport: true
+      Tags: 
+        - Key: project_name
+          Value: hello_eks
+  kuardIgw:
+    Type: AWS::EC2::InternetGateway
+    Properties:
+      Tags: 
+        - Key: project_name
+          Value: hello_eks
+  kuardIgwAttachment:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      VpcId: !Ref kuardVpc
+      InternetGatewayId: !Ref kuardIgw
+  kuardNatEip:
+    Type: AWS::EC2::EIP
+    Properties:
+      Tags: 
+        - Key: project_name
+          Value: hello_eks
+  kuardLbcEip:
+    Type: AWS::EC2::EIP
+    Properties:
+      Tags: 
+        - Key: project_name
+          Value: hello_eks
+
+  # VPC - Public Subnet
+  kuardPublicSubnet:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref kuardVpc
+      AvailabilityZone: us-west-2b
+      CidrBlock: 10.0.0.128/25
+      MapPublicIpOnLaunch: true
+      Tags: 
+        - Key: project_name
+          Value: hello_eks
+          # Used for AWS LoadBalancer
+        - Key: Name
+          Value: kuardPublicSubnet
+        # - Key: kubernetes.io/cluster/hello-eks-cluster  # TODO: parameterize the cluster-name.
+        #   Value: owned  # or shared  
+        # - Key: kubernetes.io/role/elb
+        #   Value: 1
+  kuardPublicRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref kuardVpc
+      Tags: 
+        - Key: project_name
+          Value: hello_eks
+  kuardIgwRoute:
+    Type: AWS::EC2::Route
+    Properties:
+      RouteTableId: !Ref kuardPublicRouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref kuardIgw
+  # Local routes are added by default
+  # NAT is needed for kubelet from private nodes to talk to server api in control plane?
+  kuardPublicNatGateway:
+    Type: AWS::EC2::NatGateway
+    Properties:
+      AllocationId: !GetAtt kuardNatEip.AllocationId
+      ConnectivityType: public  # default
+      SubnetId: !Ref kuardPublicSubnet
+      Tags: 
+        - Key: project_name
+          Value: hello_eks
+  kuardPublicSubnetRouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref kuardPublicSubnet
+      RouteTableId: !Ref kuardPublicRouteTable
+
+  # VPC - Private Subnet
+  kuardPrivateSubnet:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref kuardVpc
+      AvailabilityZone: us-west-2a
+      CidrBlock: 10.0.0.0/25
+      Tags: 
+        - Key: project_name
+          Value: hello_eks
+          # Used for AWS LoadBalancerController
+        # - Key: kubernetes.io/cluster/hello-eks-cluster  # TODO: parameterize the cluster-name
+        #   Value: owned  # or shared
+        # - Key: kubernetes.io/role/internal-elb
+        #   Value: 1
+        - Key: Name
+          Value: kuardPrivateSubnet
+  kuardPrivateRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref kuardVpc
+  # Local routes are added by default
+  kuardNatRoute:
+    Type: AWS::EC2::Route
+    Properties:
+      RouteTableId: !Ref kuardPrivateRouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      NatGatewayId: !Ref kuardPublicNatGateway
+  kuardPrivateSubnetRouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref kuardPrivateSubnet
+      RouteTableId: !Ref kuardPrivateRouteTable
+
+  # TODO: Do we need VPC Endpoint?
+
+
+###############################################################################
+# Security Group                                                              #
+###############################################################################
+  kuardSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Allow all TPC inbound traffic
+      SecurityGroupIngress: 
+        - IpProtocol: tcp
+          CidrIp: 0.0.0.0/0
+          FromPort: 1
+          ToPort: 65535
+      Tags: 
+        - Key: project_name
+          Value: hello_eks
+        - Key: Name
+          Value: kuardFrontendSecurityGroup
+      VpcId: !Ref kuardVpc
+
+
+###############################################################################
+# EKS Cluster                                                                 #
+###############################################################################
+  kuardCluster:
+    Type: AWS::EKS::Cluster
+    Properties:
+      Version: '1.29'
+      Name: hello-eks-cluster
+      RoleArn: !GetAtt kuardClusterServiceRole.Arn
+      ResourcesVpcConfig:
+        EndpointPublicAccess: true  # default
+        EndpointPrivateAccess: false  # default
+        PublicAccessCidrs: [ "0.0.0.0/0" ]  # default
+        SubnetIds:
+          - !Ref kuardPublicSubnet
+          - !Ref kuardPrivateSubnet
+        SecurityGroupIds:
+          - !GetAtt kuardSecurityGroup.GroupId
+      KubernetesNetworkConfig:
+        IpFamily: ipv4  # default
+        ServiceIpv4Cidr: 192.168.0.0/16  # this shouldn't overlap with other CIDR block in the VPC.
+      AccessConfig:
+        AuthenticationMode: CONFIG_MAP  # default
+        BootstrapClusterCreatorAdminPermissions: true  # default
+      Tags: 
+        - Key: project_name
+          Value: hello_eks
+
+
+###############################################################################
+# EKS Node Group                                                              #
+###############################################################################
+  kuardPrivateNodegroup:
+    Type: AWS::EKS::Nodegroup
+    DependsOn:
+      - kuardCluster
+      - kuardNodeServiceRole
+      - kuardPrivateSubnet
+    Properties:
+      NodegroupName: privateNg
+      ClusterName: !Ref kuardCluster
+      NodeRole: !GetAtt kuardNodeServiceRole.Arn
+      Subnets:
+        - !Ref kuardPrivateSubnet
+      AmiType: AL2023_x86_64_STANDARD
+      CapacityType: ON_DEMAND
+      InstanceTypes: [t2.large]
+      ScalingConfig:
+        DesiredSize: 1
+        MinSize: 0
+        MaxSize: 5
+      RemoteAccess:
+        Ec2SshKey: skim-to-ec2
+      Labels:
+        nodeSubnetType: private
+
+  kuardPublicNodegroup:
+    Type: AWS::EKS::Nodegroup
+    DependsOn:
+      - kuardCluster
+      - kuardNodeServiceRole
+      - kuardPublicSubnet
+    Properties:
+      NodegroupName: publicNg
+      ClusterName: !Ref kuardCluster
+      NodeRole: !GetAtt kuardNodeServiceRole.Arn
+      Subnets:
+        - !Ref kuardPublicSubnet
+      AmiType: AL2023_x86_64_STANDARD
+      CapacityType: ON_DEMAND
+      InstanceTypes: [t2.large]
+      # TODO: Needs to consider how many Pods will be created and how many Node resources are needed (NIC, CPU, Mem etc)
+      ScalingConfig:
+        DesiredSize: 1
+        MinSize: 0
+        MaxSize: 5
+      RemoteAccess:
+        Ec2SshKey: skim-to-ec2
+      Labels:
+        nodeSubnetType: public
+
+  # kuardOidcProvider:
+  #   Type: AWS::IAM::OIDCProvider
+  #   Properties:
+  #     ClientIdList: 
+  #       - sts.amazonaws.com
+  #     Tags: 
+  #       - Key: project_name
+  #         Value: hello_eks
+  #     Url: !GetAtt kuardCluster.OpenIdConnectIssuerUrl
+  #     ThumbprintList: [] # optional, automatcially retrieved from the OIDC provider.
+
+# AWSLoadBalancerControllerIAMPolicy:
+
+
+
+# issuer_url: https://oidc.eks.us-west-2.amazonaws.com/id/A9A7F0332B520C17FBC0212546EAA161
+# thumbprint: 9e99a48a9960b14926bb7f3b02e22da2b0ab7280
+
+
+# TODO:
+Outputs:
+  tags:
+    Value: !Sub
+      - 'VPC ID: ${kuardVpcId}'
+      - kuardVpcId: !Ref kuardVpc
+
+
+
+
+# ./max-pods-calculator.sh --instance-type t2.micro --cni-version 1.8.0-eksbuild.1

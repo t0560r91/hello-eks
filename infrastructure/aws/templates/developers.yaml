@@ -11,6 +11,7 @@ Resources:
     Type: AWS::IAM::Role
     Properties:
       RoleName: eksAdminRole
+      Path: /kuard/
       AssumeRolePolicyDocument:
         Version: '2012-10-17'
         Statement:
@@ -48,6 +49,7 @@ Resources:
     Type: AWS::IAM::Role
     Properties:
       RoleName: eksUserRole
+      Path: /kuard/
       AssumeRolePolicyDocument:
         Version: '2012-10-17'
         Statement:
@@ -69,6 +71,7 @@ Resources:
     Type: AWS::IAM::Role
     Properties:
       RoleName: clusterAdminRole
+      Path: /kuard/
       AssumeRolePolicyDocument:
         Version: '2012-10-17'
         Statement:
@@ -108,6 +111,7 @@ Resources:
     Type: AWS::IAM::Role
     Properties:
       RoleName: clusterUserRole
+      Path: /kuard/
       AssumeRolePolicyDocument:
         Version: '2012-10-17'
         Statement:
@@ -146,6 +150,7 @@ Resources:
     Type: AWS::IAM::Role
     Properties:
       RoleName: ns0AdminRole
+      Path: /kuard/
       AssumeRolePolicyDocument:
         Version: '2012-10-17'
         Statement:
@@ -184,6 +189,7 @@ Resources:
     Type: AWS::IAM::Role
     Properties:
       RoleName: ns0UserRole
+      Path: /kuard/
       AssumeRolePolicyDocument:
         Version: '2012-10-17'
         Statement:
@@ -231,6 +237,7 @@ Resources:
     Type: AWS::IAM::Group
     Properties:
       GroupName: eksAdminGroup
+      Path: /kuard/
       Policies:
         - PolicyName: assumeRolePolicy
           PolicyDocument:
@@ -246,6 +253,7 @@ Resources:
     Type: AWS::IAM::Group
     Properties:
       GroupName: eksUserGroup
+      Path: /kuard/
       Policies:
         - PolicyName: assumeRolePolicy
           PolicyDocument:
@@ -261,6 +269,7 @@ Resources:
     Type: AWS::IAM::Group
     Properties:
       GroupName: clusterAdminGroup
+      Path: /kuard/
       Policies:
         - PolicyName: assumeRolePolicy
           PolicyDocument:
@@ -276,6 +285,7 @@ Resources:
     Type: AWS::IAM::Group
     Properties:
       GroupName: clusterUserGroup
+      Path: /kuard/
       Policies:
         - PolicyName: assumeRolePolicy
           PolicyDocument:
@@ -291,6 +301,7 @@ Resources:
     Type: AWS::IAM::Group
     Properties:
       GroupName: ns0AdminGroup
+      Path: /kuard/
       Policies:
         - PolicyName: assumeRolePolicy
           PolicyDocument:
@@ -306,6 +317,7 @@ Resources:
     Type: AWS::IAM::Group
     Properties:
       GroupName: ns0UserGroup
+      Path: /kuard/
       Policies:
         - PolicyName: assumeRolePolicy
           PolicyDocument:
@@ -326,6 +338,7 @@ Resources:
         - Key: project_name
           Value: hello_eks
       UserName: dev1
+      Path: /kuard/
       Groups:
         - !Ref eksAdminGroup
         - !Ref clusterAdminGroup
@@ -342,6 +355,7 @@ Resources:
         - Key: project_name
           Value: hello_eks
       UserName: dev2
+      Path: /kuard/
       Groups:
         - !Ref eksUserGroup
         - !Ref clusterUserGroup

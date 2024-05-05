@@ -3,7 +3,7 @@ kind: Namespace
 metadata:
   name: ns1
   labels:
-    name: kuard
+    app-name: kuard
 
 ---
 
@@ -28,6 +28,7 @@ spec:
 ---
 
 apiVersion: v1
+kind: Service
 metadata:
   namespace: ns1
   name: kuard-loadbalancer
@@ -40,13 +41,29 @@ metadata:
     service.beta.kubernetes.io/aws-load-balancer-additional-resource-tags: project_name=hello_eks,created_by=aws_lbc
     service.beta.kubernetes.io/aws-load-balancer-subnets: kuardPublicSubnet  # Name tag
     service.beta.kubernetes.io/aws-load-balancer-security-groups: kuardFrontendSecurityGroup  # Name tag
-    service.beta.kubernetes.io/aws-load-balancer-manage-backend-security-group-rules: true
+    service.beta.kubernetes.io/aws-load-balancer-manage-backend-security-group-rules: "true"
     # service.beta.kubernetes.io/aws-load-balancer-eip-allocations: eip-alloc-id-1,eip-alloc-id-2
 spec:
   type: LoadBalancer  # modifying this will cleanup the NLB.
   loadBalancerClass: service.k8s.aws/nlb  # if no matching class then this Service resource will be ignored
   ports:
-  - port: 30000 # port == cluster-ip port == node port
-    targetPort: 8080
+  - port: 80  # loadbalancer port
+    nodePort: 30001  # node port to which the loadbalancer forwards the traffic
+    targetPort: 8080  # container port to which the kube-proxy forwards the traffic from the node
   selector:
     app-name: kuard
+
+
+# TODOs:
+# automate add OCID Provide to IAM
+#   - caused failure to authenticating using the OIDC provider
+# Parameterize EKS OICD Provider federation principal for LBC Service Account Role
+#   - caused failure to authenticating using the OIDC provider
+# why do I need to manually register loadbalancer target nodes?
+# failed to start pods and stuck in crashloop due to lack of network interface counts in the node
+#   - solved the issue by increasing the instance type
+# failed to connect to LBC webhook due to restricted instance metadata acess 
+#   - need to investigate
+# LBC resource which need to be manually deleted to tear down the cfn
+#   - backend security group (managed by LBC)
+#   - load balancer

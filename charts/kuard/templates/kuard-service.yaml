@@ -1,0 +1,25 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: kuard-service
+  namespace: ns1
+  labels:
+    app-name: kuard
+  annotations: 
+    service.beta.kubernetes.io/aws-load-balancer-type: external
+    service.beta.kubernetes.io/aws-load-balancer-nlb-target-type: instance  # options: instance (default), ip
+    service.beta.kubernetes.io/aws-load-balancer-scheme: internet-facing  # options: internal (default), internet-facing
+    service.beta.kubernetes.io/aws-load-balancer-additional-resource-tags: project_name=hello_eks,created_by=aws_lbc
+    service.beta.kubernetes.io/aws-load-balancer-subnets: kuardPublicSubnet  # Name tag
+    service.beta.kubernetes.io/aws-load-balancer-security-groups: kuardFrontendSecurityGroup  # Name tag
+    service.beta.kubernetes.io/aws-load-balancer-manage-backend-security-group-rules: "true"
+    service.beta.kubernetes.io/aws-load-balancer-eip-allocations: {{ .Values.lbcEipAllocId }}
+spec:
+  type: LoadBalancer
+  loadBalancerClass: service.k8s.aws/nlb
+  selector:
+    app-name: kuard
+  ports:
+  - port: 80
+    nodePort: 30001
+    targetPort: 8080
